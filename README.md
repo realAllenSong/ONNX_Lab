@@ -1,4 +1,4 @@
-# VoxCPM 1.5B ONNX (CPU) - Root Project
+# VoxCPM 1.5B ONNX (CPU)
 
 ONNX_Lab 致力于打造简单易用的强大开源 TTS 模型的 ONNX CPU 运行版，旨在以最小成本跑出最高质量语音。
 目前支持 **VoxCPM 1.5B**，后续会逐步扩展更多模型与推理方案。
@@ -224,7 +224,7 @@ python infer.py --audio-normalizer --text "..." --output out.wav
 
 ```python
 # 1. 克隆仓库并安装 uv
-!git clone https://github.com/<your-org-or-user>/ONNX_Lab
+!git clone https://github.com/realAllenSong/ONNX_Lab.git
 %cd ONNX_Lab
 !pip install uv
 !chmod +x run_service.sh
