@@ -1,6 +1,7 @@
 import argparse
 import gc
 import os
+import importlib.util
 import site
 import shutil
 import sys
@@ -97,12 +98,27 @@ USE_TEXT_NORMALIZER = not args.no_text_normalizer
 USE_AUDIO_NORMALIZER = args.audio_normalizer
 RUN_INFER = args.run_infer
 
-py_site = site.getsitepackages()[-1]
 local_voxcpm_pkg = os.path.join(BASE_DIR, "VoxCPM", "src", "voxcpm")
-if os.path.isdir(local_voxcpm_pkg):
-    voxcpm_pkg_root = local_voxcpm_pkg
-else:
-    voxcpm_pkg_root = os.path.join(py_site, "voxcpm")
+
+def resolve_voxcpm_pkg_root() -> str | None:
+    if os.path.isdir(local_voxcpm_pkg):
+        return local_voxcpm_pkg
+    spec = importlib.util.find_spec("voxcpm")
+    if spec and spec.submodule_search_locations:
+        return str(spec.submodule_search_locations[0])
+    if site.getsitepackages():
+        candidate = os.path.join(site.getsitepackages()[-1], "voxcpm")
+        if os.path.isdir(candidate):
+            return candidate
+    return None
+
+
+voxcpm_pkg_root = resolve_voxcpm_pkg_root()
+if not voxcpm_pkg_root or not os.path.isdir(voxcpm_pkg_root):
+    raise FileNotFoundError(
+        "VoxCPM source not found. Clone https://github.com/OpenBMB/VoxCPM into ./VoxCPM "
+        "or install the voxcpm package into the active environment."
+    )
 
 shutil.copyfile(os.path.join(BASE_DIR, "modeling_modified", "model.py"), os.path.join(path_voxcpm, "model.py"))
 shutil.copyfile(os.path.join(BASE_DIR, "modeling_modified", "core.py"), os.path.join(voxcpm_pkg_root, "core.py"))

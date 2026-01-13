@@ -1,7 +1,7 @@
 {
   "models_dir": "models/onnx_models_quantized",
   "voxcpm_dir": "models/VoxCPM1.5",
-  "voice": "dehua_promptvn",
+  "voice": "trump_promptvn",
   "prompt_audio": null,
   "prompt_text": null,
   "text": [

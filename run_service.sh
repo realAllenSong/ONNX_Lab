@@ -62,6 +62,22 @@ uv run --python "$VENV_PYTHON" python download_reference_voices.py \
   --voices-file voices.json \
   --reset
 
+if [[ ! -d "VoxCPM/src/voxcpm" ]]; then
+  if [[ -d "VoxCPM" ]]; then
+    echo "VoxCPM directory exists but VoxCPM/src/voxcpm is missing."
+    echo "Please replace ./VoxCPM with a fresh clone of https://github.com/OpenBMB/VoxCPM"
+    exit 1
+  fi
+  if command -v git >/dev/null 2>&1; then
+    echo "VoxCPM source not found. Cloning OpenBMB/VoxCPM..."
+    git clone --depth 1 https://github.com/OpenBMB/VoxCPM VoxCPM
+  else
+    echo "VoxCPM source not found and git is unavailable."
+    echo "Please clone https://github.com/OpenBMB/VoxCPM into ./VoxCPM"
+    exit 1
+  fi
+fi
+
 mkdir -p models/VoxCPM1.5 models/onnx_models models/onnx_models_quantized
 
 if ! ls models/VoxCPM1.5/*.safetensors >/dev/null 2>&1 && ! ls models/VoxCPM1.5/*.bin >/dev/null 2>&1; then
