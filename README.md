@@ -54,7 +54,7 @@ ONNX_Lab 致力于打造简单易用的强大开源 TTS 模型的 ONNX CPU 运�
 
 ```bash
 # Hugging Face (推荐)
-VOXCPM_ONNX_REPO=your-user/voxcpm-onnx \
+VOXCPM_ONNX_REPO=Oulasong/voxcpm-onnx \
 VOXCPM_ONNX_FORCE=1 \
 ./run_service.sh
 
