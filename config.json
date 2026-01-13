@@ -1,7 +1,7 @@
 {
   "models_dir": "models/onnx_models_quantized",
   "voxcpm_dir": "models/VoxCPM1.5",
-  "voice": "default",
+  "voice": "dehua_promptvn",
   "prompt_audio": null,
   "prompt_text": null,
   "text": [
@@ -11,7 +11,7 @@
   "output": "outputs/demo.wav",
   "text_normalizer": true,
   "audio_normalizer": false,
-  "cfg_value": 2.5,
+  "cfg_value": 2.2,
   "fixed_timesteps": 10,
   "seed": 1,
   "max_threads": 0

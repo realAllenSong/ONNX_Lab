@@ -49,9 +49,15 @@ else
   fi
 fi
 
-uv pip install -r requirements-cpu.txt
+VENV_PYTHON="$ROOT_DIR/.venv/bin/python"
+if [[ ! -x "$VENV_PYTHON" ]]; then
+  echo "Virtual environment not found at $VENV_PYTHON"
+  exit 1
+fi
 
-uv run python download_reference_voices.py \
+uv pip install --python "$VENV_PYTHON" -r requirements-cpu.txt
+
+uv run --python "$VENV_PYTHON" python download_reference_voices.py \
   --output-dir reference \
   --voices-file voices.json \
   --reset
@@ -60,8 +66,8 @@ mkdir -p models/VoxCPM1.5 models/onnx_models models/onnx_models_quantized
 
 if ! ls models/VoxCPM1.5/*.safetensors >/dev/null 2>&1 && ! ls models/VoxCPM1.5/*.bin >/dev/null 2>&1; then
   echo "Downloading VoxCPM1.5 weights to models/VoxCPM1.5..."
-  uv pip install -r requirements-export.txt
-  uv run python - <<'PY'
+  uv pip install --python "$VENV_PYTHON" -r requirements-export.txt
+  uv run --python "$VENV_PYTHON" python - <<'PY'
 from huggingface_hub import snapshot_download
 snapshot_download(
     repo_id="openbmb/VoxCPM1.5",
@@ -91,12 +97,12 @@ done
 
 if [[ ${#missing[@]} -gt 0 ]]; then
   echo "Missing ONNX files in models/onnx_models_quantized. Exporting and quantizing..."
-  uv pip install -r requirements-export.txt
-  uv run python Export_VoxCPM_ONNX.py \
+  uv pip install --python "$VENV_PYTHON" -r requirements-export.txt
+  uv run --python "$VENV_PYTHON" python Export_VoxCPM_ONNX.py \
     --voxcpm-dir ./models/VoxCPM1.5 \
     --onnx-dir ./models/onnx_models
 
-  uv run python Optimize_ONNX.py \
+  uv run --python "$VENV_PYTHON" python Optimize_ONNX.py \
     --input-dir ./models/onnx_models \
     --output-dir ./models/onnx_models_quantized \
     --cpu
@@ -109,6 +115,6 @@ fi
 
 mkdir -p outputs
 
-uv run python infer.py --config config.json
+uv run --python "$VENV_PYTHON" python infer.py --config config.json
 
 echo "Done. Output: outputs/demo.wav"

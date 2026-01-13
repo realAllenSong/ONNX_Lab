@@ -11,3 +11,4 @@ clone_reference/
 *.bin
 *.pth
 .DS_Store
+voice_choice.md
