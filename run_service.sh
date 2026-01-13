@@ -55,6 +55,12 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
   exit 1
 fi
 
+VOXCPM_MODEL_REPO="${VOXCPM_MODEL_REPO:-openbmb/VoxCPM1.5}"
+VOXCPM_ONNX_REPO="${VOXCPM_ONNX_REPO:-}"
+VOXCPM_ONNX_REVISION="${VOXCPM_ONNX_REVISION:-}"
+VOXCPM_ONNX_URL="${VOXCPM_ONNX_URL:-}"
+VOXCPM_ONNX_FORCE="${VOXCPM_ONNX_FORCE:-0}"
+
 uv pip install --python "$VENV_PYTHON" -r requirements-cpu.txt
 
 uv run --python "$VENV_PYTHON" python download_reference_voices.py \
@@ -85,9 +91,10 @@ if ! ls models/VoxCPM1.5/*.safetensors >/dev/null 2>&1 && ! ls models/VoxCPM1.5/
   echo "Downloading VoxCPM1.5 weights to models/VoxCPM1.5..."
   uv pip install --python "$VENV_PYTHON" -r requirements-export.txt
   uv run --python "$VENV_PYTHON" python - <<'PY'
+import os
 from huggingface_hub import snapshot_download
 snapshot_download(
-    repo_id="openbmb/VoxCPM1.5",
+    repo_id=os.environ.get("VOXCPM_MODEL_REPO", "openbmb/VoxCPM1.5"),
     local_dir="./models/VoxCPM1.5",
     local_dir_use_symlinks=False,
 )
@@ -105,14 +112,109 @@ required_models=(
   VoxCPM_VAE_Decoder.onnx
 )
 
-missing=()
-for name in "${required_models[@]}"; do
-  if [[ ! -f "models/onnx_models_quantized/${name}" ]]; then
-    missing+=("$name")
-  fi
-done
+have_all_onnx() {
+  local dir="$1"
+  for name in "${required_models[@]}"; do
+    if [[ ! -f "${dir}/${name}" ]]; then
+      return 1
+    fi
+  done
+  return 0
+}
 
-if [[ ${#missing[@]} -gt 0 ]]; then
+download_prebuilt_onnx() {
+  local target_dir="models/onnx_models_quantized"
+  local download_dir="$target_dir"
+  local tmp_dir=""
+
+  if [[ -n "$(ls -A "$target_dir" 2>/dev/null)" ]]; then
+    tmp_dir="$(mktemp -d)"
+    download_dir="$tmp_dir"
+  fi
+
+  if [[ -n "$VOXCPM_ONNX_REPO" ]]; then
+    echo "Attempting to download prebuilt ONNX from HF: ${VOXCPM_ONNX_REPO}"
+    VOXCPM_ONNX_LOCAL_DIR="$download_dir" uv run --python "$VENV_PYTHON" python - <<'PY'
+import os
+from huggingface_hub import snapshot_download
+
+repo_id = os.environ.get("VOXCPM_ONNX_REPO")
+revision = os.environ.get("VOXCPM_ONNX_REVISION") or None
+local_dir = os.environ.get("VOXCPM_ONNX_LOCAL_DIR", "models/onnx_models_quantized")
+allow_patterns = ["*.onnx", "*.onnx.data", "voxcpm_onnx_config.json"]
+snapshot_download(
+    repo_id=repo_id,
+    revision=revision,
+    local_dir=local_dir,
+    allow_patterns=allow_patterns,
+    local_dir_use_symlinks=False,
+)
+PY
+  elif [[ -n "$VOXCPM_ONNX_URL" ]]; then
+    echo "Attempting to download prebuilt ONNX from URL: ${VOXCPM_ONNX_URL}"
+    archive_path="${download_dir}/onnx_models_quantized.archive"
+    if command -v curl >/dev/null 2>&1; then
+      curl -L "$VOXCPM_ONNX_URL" -o "$archive_path"
+    elif command -v wget >/dev/null 2>&1; then
+      wget -O "$archive_path" "$VOXCPM_ONNX_URL"
+    else
+      echo "Neither curl nor wget is available."
+      return 1
+    fi
+
+    case "$VOXCPM_ONNX_URL" in
+      *.tar.gz|*.tgz)
+        tar -xzf "$archive_path" -C "$download_dir"
+        ;;
+      *.zip)
+        unzip -q "$archive_path" -d "$download_dir"
+        ;;
+      *)
+        echo "Unsupported archive format (use .tar.gz/.tgz/.zip)."
+        rm -f "$archive_path"
+        return 1
+        ;;
+    esac
+    rm -f "$archive_path"
+  else
+    return 1
+  fi
+
+  if ! have_all_onnx "$download_dir"; then
+    subdir="$(find "$download_dir" -mindepth 1 -maxdepth 1 -type d | head -n1 || true)"
+    if [[ -n "$subdir" ]]; then
+      shopt -s dotglob
+      mv "$subdir"/* "$download_dir"/
+      shopt -u dotglob
+      rmdir "$subdir" 2>/dev/null || true
+    fi
+  fi
+
+  if [[ -n "$tmp_dir" ]]; then
+    if have_all_onnx "$tmp_dir"; then
+      rm -rf "$target_dir"
+      mv "$tmp_dir" "$target_dir"
+    else
+      echo "Prebuilt ONNX download incomplete. Keeping existing files."
+      rm -rf "$tmp_dir"
+      return 1
+    fi
+  fi
+
+  return 0
+}
+
+if [[ "$VOXCPM_ONNX_FORCE" == "1" ]]; then
+  download_prebuilt_onnx || true
+fi
+
+if ! have_all_onnx "models/onnx_models_quantized"; then
+  if [[ -n "$VOXCPM_ONNX_REPO" || -n "$VOXCPM_ONNX_URL" ]]; then
+    download_prebuilt_onnx || true
+  fi
+fi
+
+if ! have_all_onnx "models/onnx_models_quantized"; then
   echo "Missing ONNX files in models/onnx_models_quantized. Exporting and quantizing..."
   uv pip install --python "$VENV_PYTHON" -r requirements-export.txt
   uv run --python "$VENV_PYTHON" python Export_VoxCPM_ONNX.py \

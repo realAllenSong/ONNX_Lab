@@ -41,10 +41,39 @@ ONNX_Lab 致力于打造简单易用的强大开源 TTS 模型的 ONNX CPU 运�
 
 这个脚本会自动：
 - 下载 VoxCPM1.5 权重
+- 如配置了预构建 ONNX，会优先下载并使用（否则走导出+量化）
 - 导出 ONNX
 - CPU 量化
 - 同步官方示例音色
 - 生成一段中英文混合测试音频到 `outputs/demo.wav`
+
+## 预构建 ONNX 下载（加速 CI/Colab）
+
+如果你把 `models/onnx_models_quantized` 上传到 Hugging Face / GitHub Release，
+可通过环境变量让脚本优先下载并使用：
+
+```bash
+# Hugging Face (推荐)
+VOXCPM_ONNX_REPO=your-user/voxcpm-onnx \
+VOXCPM_ONNX_FORCE=1 \
+./run_service.sh
+
+For example:
+VOXCPM_ONNX_REPO=Oulasong/voxcpm-onnx \
+VOXCPM_ONNX_FORCE=1 \
+./run_service.sh
+
+
+# GitHub Release (提供 .tar.gz/.zip)
+VOXCPM_ONNX_URL=https://github.com/you/ONNX_Lab/releases/download/v1/onnx_models_quantized.tar.gz \
+VOXCPM_ONNX_FORCE=1 \
+./run_service.sh
+```
+
+说明：
+- `VOXCPM_ONNX_FORCE=1`：即使本地已有缓存也会优先尝试下载；失败则保留已有文件。
+- Release 压缩包内建议直接放 `VoxCPM_*.onnx` 文件（不要再套一层目录）。
+- 可选：`VOXCPM_ONNX_REVISION` 指定 Hugging Face 分支/Tag，`VOXCPM_MODEL_REPO` 指定权重来源。
 
 
 
@@ -84,7 +113,7 @@ uv run python download_reference_voices.py \
 ```python
 from huggingface_hub import snapshot_download
 snapshot_download(
-    repo_id="openbmb/VoxCPM1.5",
+    repo_id="openbmb/VoxCPM1.5",  # 可用 VOXCPM_MODEL_REPO 覆盖
     local_dir="./models/VoxCPM1.5",
     local_dir_use_symlinks=False,
 )
@@ -155,7 +184,7 @@ python infer.py --voice default --text "使用预置音色" --output preset.wav
   `openbmb/VoxCPM1.5` 权重导出与量化，**并非官方直接提供的 ONNX**。
   该目录包含 `voxcpm_onnx_config.json`（采样率、步数等默认值）。
 - `voxcpm_dir`: `openbmb/VoxCPM1.5` 权重目录（用于 tokenizer/config）。
-- `voice`: 预置音色名称（来自 `voices.json`）。使用 `voice` 时请保持 `prompt_audio`/`prompt_text` 为 `null`。
+- `voice`: 预置音色名称（来自 `voices.json`）。使用 `voice` 时请保持 `prompt_audio`/`prompt_text` 为 `null`。如果使用`prompt_audio`,则`voice`填null
 - `prompt_audio`: 语音克隆参考音频路径（与 `prompt_text` 成对出现）。
   推荐 `wav`/`flac`/`ogg`，自动转单声道、重采样至 44.1k。
   默认最大 20 秒（超出会截断），推荐 3~15 秒干净语音。
@@ -257,4 +286,41 @@ python infer.py --audio-normalizer --text "..." --output out.wav
 # 3. 播放输出音频
 from IPython.display import Audio
 Audio("outputs/demo.wav")
+```
+
+## GitHub Actions（下载优先 + cache fallback）
+
+推荐流程：先尝试下载预构建 ONNX，失败则使用 cache（或走本地导出）。
+示例 workflow：`.github/workflows/voxcpm_cpu.yml`
+
+```yaml
+name: voxcpm-cpu
+on:
+  workflow_dispatch:
+
+jobs:
+  infer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install uv
+        run: pip install uv
+      - name: Restore cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            models/VoxCPM1.5
+            models/onnx_models_quantized
+          key: voxcpm-onnx-${{ runner.os }}-v1
+      - name: Run
+        env:
+          VOXCPM_ONNX_REPO: ${{ secrets.VOXCPM_ONNX_REPO }}
+          VOXCPM_ONNX_URL: ${{ secrets.VOXCPM_ONNX_URL }}
+          VOXCPM_ONNX_FORCE: "1"
+        run: |
+          chmod +x run_service.sh
+          ./run_service.sh
 ```

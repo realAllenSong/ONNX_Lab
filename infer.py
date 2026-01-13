@@ -686,7 +686,7 @@ def main() -> None:
     if output_dir:
         os.makedirs(output_dir, exist_ok=True)
 
-    sf.write(args.output, audio_out, out_sample_rate, format="WAVEX")
+    sf.write(args.output, audio_out, out_sample_rate, format="WAV", subtype="PCM_16")
 
     total_audio_samples = audio_out.shape[-1] - blank_segment.shape[-1] * len(texts)
     total_audio_samples = max(total_audio_samples, 1)
