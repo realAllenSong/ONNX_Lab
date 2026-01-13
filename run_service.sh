@@ -64,9 +64,10 @@ uv run --python "$VENV_PYTHON" python download_reference_voices.py \
 
 if [[ ! -d "VoxCPM/src/voxcpm" ]]; then
   if [[ -d "VoxCPM" ]]; then
+    backup_dir="VoxCPM.bak.$(date +%s)"
     echo "VoxCPM directory exists but VoxCPM/src/voxcpm is missing."
-    echo "Please replace ./VoxCPM with a fresh clone of https://github.com/OpenBMB/VoxCPM"
-    exit 1
+    echo "Backing up to ${backup_dir} and cloning a fresh copy."
+    mv VoxCPM "$backup_dir"
   fi
   if command -v git >/dev/null 2>&1; then
     echo "VoxCPM source not found. Cloning OpenBMB/VoxCPM..."
