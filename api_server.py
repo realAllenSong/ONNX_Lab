@@ -464,7 +464,7 @@ class VoxCPMEngine:
 
 
 def build_engine_queue() -> tuple[queue.Queue, ThreadPoolExecutor]:
-    models_dir = os.getenv("VOXCPM_MODELS_DIR", os.path.join(os.getcwd(), "models", "onnx_models_quantized"))
+    models_dir = os.getenv("VOXCPM_MODELS_DIR", os.path.join(os.getcwd(), "models", "onnx_models"))
     voxcpm_dir = os.getenv("VOXCPM_VOXCPM_DIR", os.path.join(os.getcwd(), "models", "VoxCPM1.5"))
     voices_file = os.getenv("VOXCPM_VOICES_FILE", os.path.join(os.getcwd(), "voices.json"))
     onnx_config = os.getenv("VOXCPM_ONNX_CONFIG")

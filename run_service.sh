@@ -60,6 +60,15 @@ VOXCPM_ONNX_REPO="${VOXCPM_ONNX_REPO:-Oulasong/voxcpm-onnx}"
 VOXCPM_ONNX_REVISION="${VOXCPM_ONNX_REVISION:-}"
 VOXCPM_ONNX_URL="${VOXCPM_ONNX_URL:-}"
 VOXCPM_ONNX_FORCE="${VOXCPM_ONNX_FORCE:-0}"
+VOXCPM_USE_QUANTIZED="${VOXCPM_USE_QUANTIZED:-0}"
+
+if [[ "$VOXCPM_USE_QUANTIZED" == "1" ]]; then
+  ONNX_TARGET_DIR="models/onnx_models_quantized"
+  echo "Using quantized ONNX models (may cause audio distortion on some Linux platforms)"
+else
+  ONNX_TARGET_DIR="models/onnx_models"
+  echo "Using full-precision ONNX models (recommended for cross-platform compatibility)"
+fi
 
 uv pip install --python "$VENV_PYTHON" -r requirements-cpu.txt
 
@@ -123,7 +132,7 @@ have_all_onnx() {
 }
 
 download_prebuilt_onnx() {
-  local target_dir="models/onnx_models_quantized"
+  local target_dir="$ONNX_TARGET_DIR"
   local download_dir="$target_dir"
   local tmp_dir=""
 
@@ -140,7 +149,7 @@ from huggingface_hub import snapshot_download
 
 repo_id = os.environ.get("VOXCPM_ONNX_REPO")
 revision = os.environ.get("VOXCPM_ONNX_REVISION") or None
-local_dir = os.environ.get("VOXCPM_ONNX_LOCAL_DIR", "models/onnx_models_quantized")
+local_dir = os.environ.get("VOXCPM_ONNX_LOCAL_DIR")
 allow_patterns = ["*.onnx", "*.onnx.data", "voxcpm_onnx_config.json"]
 snapshot_download(
     repo_id=repo_id,
@@ -208,23 +217,26 @@ if [[ "$VOXCPM_ONNX_FORCE" == "1" ]]; then
   download_prebuilt_onnx || true
 fi
 
-if ! have_all_onnx "models/onnx_models_quantized"; then
+if ! have_all_onnx "$ONNX_TARGET_DIR"; then
   if [[ -n "$VOXCPM_ONNX_REPO" || -n "$VOXCPM_ONNX_URL" ]]; then
     download_prebuilt_onnx || true
   fi
 fi
 
-if ! have_all_onnx "models/onnx_models_quantized"; then
-  echo "Missing ONNX files in models/onnx_models_quantized. Exporting and quantizing..."
+if ! have_all_onnx "$ONNX_TARGET_DIR"; then
+  echo "Missing ONNX files in $ONNX_TARGET_DIR. Exporting..."
   uv pip install --python "$VENV_PYTHON" -r requirements-export.txt
   uv run --python "$VENV_PYTHON" python Export_VoxCPM_ONNX.py \
     --voxcpm-dir ./models/VoxCPM1.5 \
     --onnx-dir ./models/onnx_models
 
-  uv run --python "$VENV_PYTHON" python Optimize_ONNX.py \
-    --input-dir ./models/onnx_models \
-    --output-dir ./models/onnx_models_quantized \
-    --cpu
+  if [[ "$VOXCPM_USE_QUANTIZED" == "1" ]]; then
+    echo "Quantizing ONNX models for CPU..."
+    uv run --python "$VENV_PYTHON" python Optimize_ONNX.py \
+      --input-dir ./models/onnx_models \
+      --output-dir ./models/onnx_models_quantized \
+      --cpu
+  fi
 fi
 
 if [[ ! -f "models/VoxCPM1.5/tokenizer.json" && ! -f "models/VoxCPM1.5/tokenizer.model" ]]; then

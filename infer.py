@@ -17,7 +17,7 @@ except Exception as exc:  # pragma: no cover - optional dependency
     TEXT_NORMALIZER_IMPORT_ERROR = exc
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_MODELS_DIR = os.path.join(BASE_DIR, "models", "onnx_models_quantized")
+DEFAULT_MODELS_DIR = os.path.join(BASE_DIR, "models", "onnx_models")
 DEFAULT_VOXCPM_DIR = os.path.join(BASE_DIR, "models", "VoxCPM1.5")
 DEFAULT_VOICES_FILE = os.path.join(BASE_DIR, "voices.json")
 DEFAULT_RUN_CONFIG = os.path.join(BASE_DIR, "config.json")

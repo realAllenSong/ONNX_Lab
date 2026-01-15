@@ -1,5 +1,5 @@
 {
-  "models_dir": "models/onnx_models_quantized",
+  "models_dir": "models/onnx_models",
   "voxcpm_dir": "models/VoxCPM1.5",
   "voice": "trump_promptvn",
   "prompt_audio": null,

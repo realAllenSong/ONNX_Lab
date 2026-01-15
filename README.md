@@ -10,7 +10,6 @@ ONNX_Lab 致力于打造简单易用的强大开源 TTS 模型的 ONNX CPU 运�
 - 推理 CLI（默认启用 text-normalizer）
 - 预置音色 + 语音克隆
 
-
 ## 目录结构 (建议)
 
 ```
@@ -28,8 +27,8 @@ ONNX_Lab 致力于打造简单易用的强大开源 TTS 模型的 ONNX CPU 运�
 ├── VoxCPM/                      # 官方源码（用于导出）
 ├── models/
 │   ├── VoxCPM1.5/                 # 官方权重 + tokenizer/config
-│   ├── onnx_models/               # 导出的原始 ONNX
-│   └── onnx_models_quantized/     # CPU 量化后的 ONNX
+│   ├── onnx_models/               # 导出的全精度 ONNX（推荐用于生产环境）
+│   └── onnx_models_quantized/     # CPU 量化后的 ONNX（实验性，某些平台可能不兼容）
 ```
 
 
@@ -47,33 +46,57 @@ ONNX_Lab 致力于打造简单易用的强大开源 TTS 模型的 ONNX CPU 运�
 - 同步官方示例音色
 - 生成一段中英文混合测试音频到 `outputs/demo.wav`
 
+## ⚠️ 重要：模型版本选择
+
+本项目提供两种 ONNX 模型版本：
+
+### 1. 全精度版本 (`onnx_models/`) - **推荐**
+- ✅ 跨平台兼容性好（Mac/Linux/Windows）
+- ✅ 音质稳定可靠
+- ⚠️ 体积较大（~6GB）
+- ⚠️ 推理速度稍慢
+
+### 2. 量化版本 (`onnx_models_quantized/`) - **实验性**
+- ✅ 体积小（~1.5GB）
+- ✅ 推理速度快
+- ❌ **在某些 Linux 平台（Colab/GitHub Actions）上可能产生音频失真**
+- ✅ Mac 上测试正常
+
+**建议：**
+- **生产环境、Colab、GitHub Actions**: 使用全精度版本
+- **本地开发（Mac）**: 可尝试量化版本
+- 如果遇到音频失真问题，请切换到全精度版本
+
 ## 预构建 ONNX 下载（加速 CI/Colab）
 
-如果你把 `models/onnx_models_quantized` 上传到 Hugging Face / GitHub Release，
-可通过环境变量让脚本优先下载并使用：
+已在 Hugging Face 上传两个版本：
+- 全精度：`Oulasong/voxcpm-onnx/onnx_models/` (main 分支)
+- 量化：`Oulasong/voxcpm-onnx/onnx_models_quantized/` (quantized 分支)
+
+通过环境变量指定下载版本：
 
 ```bash
-# Hugging Face (推荐)
+# 使用全精度版本（推荐用于 Colab/GitHub Actions）
+VOXCPM_USE_QUANTIZED=0 \
 VOXCPM_ONNX_REPO=Oulasong/voxcpm-onnx \
 VOXCPM_ONNX_FORCE=1 \
 ./run_service.sh
 
-For example:
+# 使用量化版本（仅推荐 Mac 本地使用）
+VOXCPM_USE_QUANTIZED=1 \
 VOXCPM_ONNX_REPO=Oulasong/voxcpm-onnx \
+VOXCPM_ONNX_REVISION=quantized \
 VOXCPM_ONNX_FORCE=1 \
 ./run_service.sh
 
 
-# GitHub Release (提供 .tar.gz/.zip)
-VOXCPM_ONNX_URL=https://github.com/you/ONNX_Lab/releases/download/v1/onnx_models_quantized.tar.gz \
-VOXCPM_ONNX_FORCE=1 \
-./run_service.sh
-```
 
 说明：
+- `VOXCPM_USE_QUANTIZED=0`: 使用全精度版本（默认，推荐）
+- `VOXCPM_USE_QUANTIZED=1`: 使用量化版本（可能在某些平台失真）
 - `VOXCPM_ONNX_FORCE=1`：即使本地已有缓存也会优先尝试下载；失败则保留已有文件。
-- Release 压缩包内建议直接放 `VoxCPM_*.onnx` 文件（不要再套一层目录）。
-- 可选：`VOXCPM_ONNX_REVISION` 指定 Hugging Face 分支/Tag，`VOXCPM_MODEL_REPO` 指定权重来源。
+- `VOXCPM_ONNX_REVISION`：指定 Hugging Face 分支（main=全精度，quantized=量化版）
+- `VOXCPM_MODEL_REPO`：指定权重来源（默认 openbmb/VoxCPM1.5）
 
 
 
@@ -183,7 +206,7 @@ import json
 import subprocess
 
 cfg = {
-  "models_dir": "/path/ONNX_Lab/models/onnx_models_quantized",
+  "models_dir": "/path/ONNX_Lab/models/onnx_models",  # 使用全精度版本（推荐）
   "voxcpm_dir": "/path/ONNX_Lab/models/VoxCPM1.5",
   "voices_file": "/path/your_project/voices.json",
   "voice": "default",
@@ -221,10 +244,14 @@ uv run uvicorn api_server:app --host 0.0.0.0 --port 8000 --workers 1
 环境变量（可选）：
 
 ```bash
-export VOXCPM_MODELS_DIR=/path/ONNX_Lab/models/onnx_models_quantized
+# 使用全精度版本（推荐）
+export VOXCPM_MODELS_DIR=/path/ONNX_Lab/models/onnx_models
 export VOXCPM_VOXCPM_DIR=/path/ONNX_Lab/models/VoxCPM1.5
 export VOXCPM_VOICES_FILE=/path/your_project/voices.json
 export VOXCPM_MAX_CONCURRENCY=1
+
+# 或使用量化版本（仅 Mac，可能在 Linux 失真）
+# export VOXCPM_MODELS_DIR=/path/ONNX_Lab/models/onnx_models_quantized
 ```
 
 多用户建议：提高 `VOXCPM_MAX_CONCURRENCY` 或使用 `uvicorn --workers N`（每个 worker 会加载一份模型，占用更多内存）。
@@ -260,9 +287,12 @@ curl -X POST http://localhost:8000/synthesize-file \
 
 ### 字段说明
 
-- `models_dir`: ONNX 模型目录（**CPU 推荐用量化后的** `onnx_models_quantized`）。这里的 ONNX 来自
-  `openbmb/VoxCPM1.5` 权重导出与量化，**并非官方直接提供的 ONNX**。
-  该目录包含 `voxcpm_onnx_config.json`（采样率、步数等默认值）。
+- `models_dir`: ONNX 模型目录路径。⚠️ **平台兼容性说明**：
+  - **Colab/GitHub Actions/Linux**: 推荐使用 `models/onnx_models`（全精度版本）
+  - **Mac 本地开发**: 可使用 `models/onnx_models_quantized`（量化版本，速度更快）
+  - 量化版本在某些 Linux 平台可能产生音频失真，遇到问题请切换到全精度版本
+  - 这里的 ONNX 来自 `openbmb/VoxCPM1.5` 权重导出，**并非官方直接提供的 ONNX**
+  - 该目录包含 `voxcpm_onnx_config.json`（采样率、步数等默认值）
 - `voxcpm_dir`: `openbmb/VoxCPM1.5` 权重目录（用于 tokenizer/config）。
 - `voice`: 预置音色名称（来自 `voices.json`）。使用 `voice` 时请保持 `prompt_audio`/`prompt_text` 为 `null`。如果使用`prompt_audio`,则`voice`填null
 - `prompt_audio`: 语音克隆参考音频路径（与 `prompt_text` 成对出现）。
@@ -351,7 +381,7 @@ python infer.py --audio-normalizer --text "..." --output out.wav
 
 ## Colab 快速体验
 
-> 将 `<your-org-or-user>` 替换为你的 GitHub 用户/组织名。
+⚠️ **Colab 必须使用全精度版本，量化版本会导致音频失真！**
 
 ```python
 # 1. 克隆仓库并安装 uv
@@ -360,7 +390,11 @@ python infer.py --audio-normalizer --text "..." --output out.wav
 !pip install uv
 !chmod +x run_service.sh
 
-# 2. 一键下载权重 + 导出 ONNX + 量化 + 生成音频
+# 2. 下载全精度 ONNX 模型并生成音频（推荐）
+import os
+os.environ['VOXCPM_USE_QUANTIZED'] = '0'
+os.environ['VOXCPM_ONNX_REPO'] = 'Oulasong/voxcpm-onnx'
+os.environ['VOXCPM_ONNX_FORCE'] = '1'
 !./run_service.sh
 
 # 3. 播放输出音频
@@ -370,7 +404,9 @@ Audio("outputs/demo.wav")
 
 ## GitHub Actions（下载优先 + cache fallback）
 
-推荐流程：先尝试下载预构建 ONNX，失败则使用 cache（或走本地导出）。
+⚠️ **GitHub Actions 必须使用全精度版本，量化版本会导致音频失真！**
+
+推荐流程：先尝试下载预构建全精度 ONNX，失败则使用 cache（或走本地导出）。
 示例 workflow：`.github/workflows/voxcpm_cpu.yml`
 
 ```yaml
@@ -393,16 +429,21 @@ jobs:
         with:
           path: |
             models/VoxCPM1.5
-            models/onnx_models_quantized
-          key: voxcpm-onnx-${{ runner.os }}-v1
+            models/onnx_models
+          key: voxcpm-onnx-full-${{ runner.os }}-v2
       - name: Run
         env:
-          VOXCPM_ONNX_REPO: ${{ secrets.VOXCPM_ONNX_REPO }}
-          VOXCPM_ONNX_URL: ${{ secrets.VOXCPM_ONNX_URL }}
+          VOXCPM_USE_QUANTIZED: "0"  # 使用全精度版本
+          VOXCPM_ONNX_REPO: Oulasong/voxcpm-onnx
           VOXCPM_ONNX_FORCE: "1"
         run: |
           chmod +x run_service.sh
           ./run_service.sh
+      - name: Upload output
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-audio
+          path: outputs/demo.wav
 ```
 
 ## Credits

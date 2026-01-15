@@ -17,13 +17,18 @@ jobs:
         with:
           path: |
             models/VoxCPM1.5
-            models/onnx_models_quantized
-          key: voxcpm-onnx-${{ runner.os }}-v1
+            models/onnx_models
+          key: voxcpm-onnx-full-${{ runner.os }}-v2
       - name: Run
         env:
-          VOXCPM_ONNX_REPO: ${{ secrets.VOXCPM_ONNX_REPO }}
-          VOXCPM_ONNX_URL: ${{ secrets.VOXCPM_ONNX_URL }}
+          VOXCPM_USE_QUANTIZED: "0"
+          VOXCPM_ONNX_REPO: Oulasong/voxcpm-onnx
           VOXCPM_ONNX_FORCE: "1"
         run: |
           chmod +x run_service.sh
           ./run_service.sh
+      - name: Upload output
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-audio
+          path: outputs/demo.wav
