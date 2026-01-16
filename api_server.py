@@ -18,6 +18,14 @@ from transformers import LlamaTokenizerFast
 
 import infer as voxcpm_infer
 
+# Phase 1 新模块
+try:
+    from model_selector import ModelSelector
+    from metrics import get_global_collector
+except ImportError:
+    ModelSelector = None
+    get_global_collector = None
+
 
 def parse_bool(value: str | None) -> bool | None:
     if value is None:
@@ -518,6 +526,60 @@ def list_voices(voices_file: str | None = None) -> dict:
     target = voices_file or os.getenv("VOXCPM_VOICES_FILE") or os.path.join(os.getcwd(), "voices.json")
     voices = voxcpm_infer.load_voice_presets(target)
     return {"voices": sorted(voices.keys())}
+
+
+@app.get("/v1/diagnostics")
+def diagnostics() -> dict:
+    """
+    诊断端点：返回系统信息、模型状态、性能统计
+    """
+    result = {
+        "status": "ok",
+        "system": {},
+        "model": {},
+        "performance": {}
+    }
+    
+    # 系统信息
+    if ModelSelector:
+        try:
+            selector = ModelSelector()
+            summary = selector.get_summary()
+            compatible, warnings = selector.check_compatibility()
+            
+            result["system"] = {
+                "os": summary["system"],
+                "cpu": summary["machine"],
+                "memory_total_gb": summary["memory_gb"],
+                "selected_version": summary["selected_version"],
+                "selected_precision": summary["selected_precision"],
+                "compatible": compatible,
+                "warnings": warnings
+            }
+        except Exception as e:
+            result["system"]["error"] = str(e)
+    
+    # 模型信息
+    models_dir = os.getenv("VOXCPM_MODELS_DIR", os.path.join(os.getcwd(), "models", "onnx_models"))
+    voxcpm_dir = os.getenv("VOXCPM_VOXCPM_DIR", os.path.join(os.getcwd(), "models", "VoxCPM1.5"))
+    
+    result["model"] = {
+        "models_dir": models_dir,
+        "voxcpm_dir": voxcpm_dir,
+        "models_loaded": os.path.isdir(models_dir),
+        "max_concurrency": int(os.getenv("VOXCPM_MAX_CONCURRENCY", "1"))
+    }
+    
+    # 性能统计
+    if get_global_collector:
+        try:
+            collector = get_global_collector()
+            perf_summary = collector.get_summary()
+            result["performance"] = perf_summary
+        except Exception as e:
+            result["performance"]["error"] = str(e)
+    
+    return result
 
 
 def synthesize_to_file(

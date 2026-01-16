@@ -4,11 +4,26 @@ import json
 import os
 import sys
 import time
+import uuid
 
 import numpy as np
 import onnxruntime as ort
 import soundfile as sf
 from transformers import LlamaTokenizerFast
+
+# Phase 1 新模块
+try:
+    from model_selector import ModelSelector, auto_select_model
+except ImportError:
+    ModelSelector = None
+    auto_select_model = None
+
+try:
+    from metrics import PerformanceMetrics, get_global_collector, TimedSection
+except ImportError:
+    PerformanceMetrics = None
+    get_global_collector = None
+    TimedSection = None
 
 try:
     from modeling_modified.text_normalize import TextNormalizer
@@ -287,6 +302,32 @@ def main() -> None:
     run_config, run_config_path = load_run_config(args.config)
     apply_run_config(args, run_config, provided_flags)
 
+    # Phase 1: 自动模型选择
+    if auto_select_model and args.models_dir is None:
+        try:
+            selector = ModelSelector()
+            version, precision = selector.select_version(prefer_quality=True)
+            model_dir_name = selector.get_model_dir_name(version, precision)
+            auto_models_dir = os.path.join(BASE_DIR, "models", model_dir_name)
+            
+            # 如果自动选择的目录存在，使用它
+            if os.path.isdir(auto_models_dir):
+                args.models_dir = auto_models_dir
+                print(f"🤖 自动选择模型: VoxCPM {version} ({precision.upper()})")
+                print(f"   目录: {model_dir_name}")
+                
+                # 显示系统信息
+                summary = selector.get_summary()
+                compatible, warnings = selector.check_compatibility()
+                print(f"   系统: {summary['system']} {summary['machine']}, 内存: {summary['memory_gb']:.1f}GB")
+                
+                if warnings:
+                    print(f"   ⚠️  警告:")
+                    for warning in warnings:
+                        print(f"      - {warning}")
+        except Exception as e:
+            print(f"⚠️  模型自动选择失败: {e}, 使用默认路径")
+    
     if args.models_dir is None:
         args.models_dir = DEFAULT_MODELS_DIR
     if args.voxcpm_dir is None:
